@@ -1,97 +1,105 @@
-# MTurkTools
-This tool permits the creation of multiple Tasks of multiple HITs (images or videos) in Amazon Mechanical Turk.
+# MTurk Image and Video Quality Tools
 
-## SetUp MTurk:
-1) Sign in as a Requester [here](https://www.mturk.com) and create an Amazon account.
-2) Create New Project [here](https://requester.mturk.com/create/projects/new) selecting Other type for the template.
-3) Follow this image: ![alt text](instructionImg/instruction1.PNG)
-4) Copy&Paste the content of [layoutImages.html](https://github.com/edoardore/MTurkTools/blob/master/layoutImages.html) in DESIGN LAYOUT (pass 2 for the creation).
-5) Save.
-6) Copy HITTypeID and LayoutID from: ![alt text](instructionImg/instruction2.PNG)
-7) Paste  HITTypeID and LayoutID in [Key.py](https://github.com/edoardore/MTurkTools/blob/master/src/Key.py).
+A Flask application for organizing image/video quality studies on
+**Amazon Mechanical Turk**. It uploads study media to S3, creates HITs,
+collects submitted assignments into MySQL, and provides task-specific
+results dashboards.
 
-Repeat 2...7 with [layoutVideo.html](https://github.com/edoardore/MTurkTools/blob/master/layoutVideo.html).
+## Workflow
 
-8) Create AWS account [here](https://aws.amazon.com/it/).
-9) Set up IAM console [here](https://console.aws.amazon.com/iam).
-10) Follow this and click on ADD USER: ![alt text](instructionImg/instruction3.PNG)
-11) Enter text like and press Next button. ![alt text](instructionImg/instruction4.PNG)
-12) Select AmazonMechanicalTurkFullAccess like: ![alt text](instructionImg/instruction5.PNG)
-13) Insert new key like: ![alt text](instructionImg/instruction6.PNG)
-14) Select Next, and Create User.
-15) Copy the two keys and paste it in [Key.py](https://github.com/edoardore/MTurkTools/blob/master/src/Key.py): ![alt text](instructionImg/instruction7.PNG) 
-## SetUp Amazon S3:
-1) Sign in [here](https://s3.console.aws.amazon.com/s3/home?region=eu-central-1#) with AWS UserID and password created earlier.
-2) Create (in different times) two new buckets named: `imagesformturk` and `videosformturk`.
-3) Deselect `Block all public access` here: ![alt text](instructionImg/instruction8.PNG)
-4) Press Create Bucket.
-5) In `imagesformturk` open bucket -> go to authorization -> Policy Bucket and paste:
-```{
-    "Version": "2012-10-17",
-    "Statement": [
-        {
-            "Sid": "PublicReadGetObject",
-            "Effect": "Allow",
-            "Principal": "*",
-            "Action": "s3:GetObject",
-            "Resource": "arn:aws:s3:::imagesformturk/*"
-        }
-    ]
-}
+1. Create an image or video task and enter a description.
+2. Upload the media through the web interface.
+3. Publish HITs using the corresponding MTurk layout.
+4. Refresh submitted results.
+5. Inspect ratings and worker-level summaries for each task.
+
+The original code defaults to MTurk's **sandbox**. S3 uploads and other AWS
+resources are separate services and can still incur charges.
+Do not switch to production without reviewing rewards, assignment settings,
+permissions, and the full study workflow.
+
+## Historical runtime
+
+The source contains Python 2 print syntax and requires a compatible
+**Python 2.7** environment. The original
+[requirements.txt](requirements.txt) pins Flask 1.1.1, boto3 1.9.245,
+PyMySQL 0.9.3, and their historical dependencies, including the Python 2
+`futures` backport.
+
+Python 2 and this dependency set are obsolete. Treat the project as a
+historical prototype, not a current production deployment recipe.
+
+## Configuration checklist
+
+- Create your own MTurk requester setup and image/video layouts from
+  [layoutImages.html](layoutImages.html) and [layoutVideo.html](layoutVideo.html).
+- Configure layout/type IDs for the legacy `Key.py` interface.
+- Provide your own authorized AWS credential configuration. Do not put real
+  secrets in tracked source; prefer the standard AWS credential-provider chain
+  when adapting the client construction.
+- Update hardcoded S3 bucket names, regions, and media URLs to your own resources.
+- Configure a local development MySQL database and review its connection settings
+  across the source files.
+- Make study media accessible only as required by the worker interface.
+  Do not broadly disable storage protections or grant unrelated AWS permissions.
+
+The original initialization script creates the `submitted`, `imagefile`,
+`videofile`, `metaimage`, and `metavideo` tables in `dbmysql`.
+**Running or importing `src/initDB.py` drops and recreates those tables.**
+Use only a disposable development database or an explicitly backed-up,
+approved initialization target.
+
+## Launching the development interface
+
+The application's working directory must be `src`: its uploads and media
+managers use that directory's relative media folders.
+Imports mix package-qualified and bare module names, so include the repository
+root on `PYTHONPATH`.
+
+After configuring the historical environment and database, a PowerShell launch
+from the repository root is:
+
+```powershell
+$env:PYTHONPATH = (Get-Location).Path
+Set-Location src
+python2 app.py
 ```
-6) In `videosformturk` open bucket -> go to authorization -> Policy Bucket and paste:
-```
-{
-    "Version": "2012-10-17",
-    "Statement": [
-        {
-            "Sid": "PublicReadGetObject",
-            "Effect": "Allow",
-            "Principal": "*",
-            "Action": "s3:GetObject",
-            "Resource": "arn:aws:s3:::videosformturk/*"
-        }
-    ]
-}
-```
 
+Open `http://127.0.0.1:4555/`. The built-in server runs in debug mode; do not
+expose it publicly. Upload actions call the HIT-creation routines, so navigating
+the application is not an entirely read-only operation.
 
-## Initialize MySQL DataBase:
-1) Download Xampp [here](https://www.apachefriends.org/it/download.html)
-2) After having installed go to `http://localhost/phpmyadmin/` and create DB with these specifics:
-User:"utente"
-Password: "pass123"
-DB Name:"dbmysql"
+## Dashboard views
 
-## Initialize Python Code:
-1) Uncomment in createImmHIT.py, resultsImm.py, createVideoHIT.py, resultsVid.py the line to connect to the live marketplace instead of the sandbox.
+The application includes file/worker rating histories, pairwise comparisons,
+rating distributions, submission counts, rating averages, demographic
+consistency summaries, age and screen-resolution distributions, and modular
+multi-chart layouts. A further view compares file means and standard deviations.
 
-Now it's all setted up! The tool can work correctly.
-Use the [requirement.txt](https://github.com/edoardore/MTurkTools/blob/master/requirements.txt) to recreate the virtual env for the project.
+![Example chart entry](src/static/graph1.PNG)
 
+Age/sex inconsistencies are a data-quality signal, not proof that a worker acted
+dishonestly. Handle participant identifiers and demographic data under the
+study's consent and retention rules.
 
-### Views:
-1) Create a new Task, choosing from Image or Video Tasks.
-2) Select files to upload on Amazon MTurk.
-3) View of all Tasks precedently created.
-4) It's possible to refresh the results of workers.
-5) Each Task has a personalized dashboard with adaptive queries that shows the results.
-6) It's possible to create other Tasks from the home view.
+## Source map
 
-## Dashboard:
-1) Evaluation History of single file (of the selected Task). Type: Line Graph.
-2) Evaluation History of single worker (that evaluates some HITs in the task selected). Type: Line Graph.
-3) Comparison of the evaluation done by two different workers (that evaluates some HITs in the task selected). Type: Radar Graph.
-4) Single file evaluation results. Type: Pie Graph.
-5) Workers ordered by the number of submitted HITs. Type: Bar Graph.
-6) Number of submitted HITs by workers and average of the evaluation vote that they have assigned. Type: Scatter Graph.
-7) Liar workers ordered by the number of times that they assigned random value in age and sex field. Type: Bar Graph.
-8) Results showed based on sex: male/female. Type: Pie Graph.
-9) Percents of the screen resolution of the workers. Type: Bar Graph.
-10) Percents of the age of the workers. Type: Bar Graph.
-11) Average and standard deviation of each file evaluated in the task; and average of all the votes of the task. Type: Line Graph.
-12) Modular multiple graph with 3 of the precedent views.
+| Path | Purpose |
+| --- | --- |
+| [src/app.py](src/app.py) | Uploads, task navigation, refresh actions, and dashboard queries |
+| [src/createImmHIT.py](src/createImmHIT.py), [src/createVideoHIT.py](src/createVideoHIT.py) | HIT creation |
+| [src/imageManager.py](src/imageManager.py), [src/videoManager.py](src/videoManager.py) | S3 media uploads |
+| [src/resultsImm.py](src/resultsImm.py), [src/resultsVid.py](src/resultsVid.py) | Submitted-assignment ingestion |
+| [src/initDB.py](src/initDB.py) | Destructive schema initialization |
+| [src/templates](src/templates) | Task and chart interfaces |
 
+The current image-result collector accepts results after at least one submitted
+assignment; this differs from the three-assignment threshold in the earlier
+[image/video script project](https://github.com/edoardorex/ImageAndVideoQualityAmazonMTurk).
 
-## License
-[Edoardo Re](https://github.com/edoardore), 2019
+## Attribution
+
+The original README credits **Edoardo Re, 2019**.
+This repository is a fork of
+[edoardore/MTurkTools](https://github.com/edoardore/MTurkTools).
+Original code and history are preserved; no software license is added or changed.
